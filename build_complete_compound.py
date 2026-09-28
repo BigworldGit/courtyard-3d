@@ -270,7 +270,6 @@ html_content = '''<!DOCTYPE html>
     const tStoneWall = loadTexture('textures/tex_authentic_dry_stone.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 8, 2);
     const tGatepost = loadTexture('textures/tex_authentic_dry_stone.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 1.2, 2.2);
     const tCoping = loadTexture('textures/tex_authentic_dry_stone.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 6, 1);
-    const tStoneBoulder = loadTexture('textures/tex_authentic_dry_stone.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 1.5, 1.5);
     const tStone = tStoneWall;
     const tEarth = loadTexture('textures/pure_mud.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 4, 3);
     const tGround = loadTexture('textures/tex_authentic_courtyard_ground.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 14, 14);
@@ -452,13 +451,6 @@ html_content = '''<!DOCTYPE html>
         side: THREE.DoubleSide
     });
 
-    const mStoneBoulder = new THREE.MeshStandardMaterial({
-        map: tStoneBoulder,
-        roughness: 0.88,
-        metalness: 0.02,
-        side: THREE.DoubleSide
-    });
-
     const mStone = mStoneWall;
 
     const mGround = new THREE.MeshStandardMaterial({
@@ -575,19 +567,6 @@ html_content = '''<!DOCTYPE html>
             coping.castShadow = true;
             coping.receiveShadow = true;
             stoneWallGroup.add(coping);
-
-            // Natural base boulders along wall rim
-            const count = Math.max(1, Math.floor(segLen / 2.8));
-            for (let b = 0; b < count; b++) {
-                const t = (b + 0.5) / count;
-                const bx = p1.x + (p2.x - p1.x) * t;
-                const bz = p1.z + (p2.z - p1.z) * t;
-                const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(0.36 + (b % 2) * 0.12, 1), mStoneBoulder);
-                boulder.scale.set(1.2, 0.75, 1.15);
-                boulder.position.set(bx, mid.y + 0.15, bz);
-                boulder.castShadow = true;
-                stoneWallGroup.add(boulder);
-            }
         }
     }
 
@@ -608,15 +587,7 @@ html_content = '''<!DOCTYPE html>
     ];
     buildWallRun(westWallPoints, 1.15, 0.65, 1.45);
 
-    // 西院墙北端收头毛石（进出通道开口端）
-    const westTerminalBoulder = new THREE.Mesh(new THREE.DodecahedronGeometry(0.52, 1), mStoneBoulder);
-    westTerminalBoulder.scale.set(1.15, 0.85, 1.15);
-    westTerminalBoulder.position.set(-14.2, 0.25, 2.8);
-    westTerminalBoulder.castShadow = true;
-    westTerminalBoulder.receiveShadow = true;
-    stoneWallGroup.add(westTerminalBoulder);
-
-    // Courtyard Entrance Boulder Gateposts (-5.2 & -3.0 at z = 14.2)
+    // Courtyard Entrance Gateposts (-5.2 & -3.0 at z = 14.2, 规整毛石方门垛及压顶条石，无任何人工圆形滚石)
     function addGatepost(gx, gz) {
         const post = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.85, 1.0), mGatepost);
         post.position.set(gx, 0.925, gz);
@@ -628,14 +599,8 @@ html_content = '''<!DOCTYPE html>
         cap.position.set(gx, 1.85 + 0.09, gz);
         cap.castShadow = true;
         stoneWallGroup.add(cap);
-
-        const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(0.55, 1), mStoneBoulder);
-        boulder.scale.set(1.25, 0.75, 1.15);
-        boulder.position.set(gx + (gx < -4.1 ? -0.45 : 0.45), 0.22, gz + 0.4);
-        boulder.castShadow = true;
-        stoneWallGroup.add(boulder);
     }
-    addGatepost(-5.2, 14.2); // 西门垛 (00:30 实景大毛石门垛)
+    addGatepost(-5.2, 14.2); // 西门垛 (规整毛石方门垛)
     addGatepost(-3.0, 14.2);  // 东门垛
 
     // --- 8. MAIN HOUSE: 双联六开间夯土正房 (19.2m x 4.8m) ---
