@@ -600,12 +600,21 @@ html_content = '''<!DOCTYPE html>
     buildWallRun(southEastWallPoints, 1.15, 0.65, 1.50);
 
     // 2. West & Southwest Courtyard Perimeter Wall (纯矩形西院墙与大门西侧南院墙)
+    // 留下通往西侧山坡果林的进出通道（进出通道开口约2.1米宽，与附房角柱不连接）
     const westWallPoints = [
-        new THREE.Vector3(-14.2, 0.0, 0.5),
+        new THREE.Vector3(-14.2, 0.0, 2.8),
         new THREE.Vector3(-14.2, 0.0, 14.2),
         new THREE.Vector3(-5.2, 0.0, 14.2)
     ];
     buildWallRun(westWallPoints, 1.15, 0.65, 1.45);
+
+    // 西院墙北端收头毛石（进出通道开口端）
+    const westTerminalBoulder = new THREE.Mesh(new THREE.DodecahedronGeometry(0.52, 1), mStoneBoulder);
+    westTerminalBoulder.scale.set(1.15, 0.85, 1.15);
+    westTerminalBoulder.position.set(-14.2, 0.25, 2.8);
+    westTerminalBoulder.castShadow = true;
+    westTerminalBoulder.receiveShadow = true;
+    stoneWallGroup.add(westTerminalBoulder);
 
     // Courtyard Entrance Boulder Gateposts (-5.2 & -3.0 at z = 14.2)
     function addGatepost(gx, gz) {
@@ -1097,8 +1106,8 @@ html_content = '''<!DOCTYPE html>
     ridgeCapMesh.castShadow = true;
     annexGroup.add(ridgeCapMesh);
 
-    // Stone Slab Pavers in West Lane Walkway (西侧外道石板小径, 位于附房西侧外)
-    for (let sp = 0; sp < 8; sp++) {
+    // Stone Slab Pavers in West Lane Walkway (西侧外道石板小径, 经由通道自然引向主院)
+    for (let sp = 0; sp < 9; sp++) {
         const paver = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.08, 0.6), mStone);
         paver.position.set(-halfWidth - AW - 0.85, 0.06, -4.5 + sp * 0.95);
         paver.receiveShadow = true;
