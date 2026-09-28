@@ -1,0 +1,1695 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>传统北方山村院落群 · 高精3D数字孪生系统</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body, html {
+            width: 100%; height: 100%; overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+            background-color: #0c0e12; color: #f2eee6;
+        }
+        #webgl-container { width: 100%; height: 100%; position: absolute; left: 0; top: 0; z-index: 1; }
+
+        /* Top HUD */
+        .top-bar {
+            position: absolute; top: 16px; left: 20px; right: 20px; z-index: 10;
+            display: flex; justify-content: space-between; align-items: center; pointer-events: none;
+        }
+        .title-badge {
+            background: rgba(18, 20, 24, 0.92); backdrop-filter: blur(14px);
+            padding: 12px 22px; border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 10px 36px rgba(0, 0, 0, 0.55); pointer-events: auto;
+        }
+        .title-badge h1 {
+            font-size: 17.5px; font-weight: 600; color: #f6f2e9;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .title-badge .subtitle {
+            font-size: 12px; color: #a8a092; margin-top: 4px;
+        }
+        .status-tag {
+            background: #2b7a4b; color: #e5ffed; font-size: 11px;
+            padding: 2px 8px; border-radius: 6px; font-weight: 500;
+        }
+
+        .top-controls { display: flex; gap: 10px; pointer-events: auto; }
+        .glass-btn {
+            background: rgba(22, 25, 31, 0.9); backdrop-filter: blur(12px);
+            color: #e2ded5; border: 1px solid rgba(255, 255, 255, 0.16);
+            padding: 9px 16px; border-radius: 10px; font-size: 13px; font-weight: 500;
+            cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        }
+        .glass-btn:hover {
+            background: rgba(45, 52, 65, 0.95); border-color: rgba(255, 215, 0, 0.4);
+            color: #fff; transform: translateY(-1px);
+        }
+        .glass-btn.active {
+            background: #8b5e34; color: #fff; border-color: #d4a373;
+            box-shadow: 0 0 12px rgba(212, 163, 115, 0.5);
+        }
+
+        /* Bottom Floating Viewpoint Bar */
+        .bottom-nav {
+            position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+            z-index: 10; background: rgba(18, 20, 24, 0.92); backdrop-filter: blur(16px);
+            padding: 8px 12px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+            display: flex; gap: 6px; max-width: 95vw; overflow-x: auto;
+        }
+        .view-btn {
+            background: transparent; border: 1px solid transparent; color: #b5b0a5;
+            padding: 8px 14px; border-radius: 10px; font-size: 12px; font-weight: 500;
+            cursor: pointer; transition: all 0.2s ease; white-space: nowrap;
+            display: flex; flex-direction: column; align-items: center; gap: 2px;
+        }
+        .view-btn span.label { font-size: 12.5px; color: #f1ede4; }
+        .view-btn span.time { font-size: 10px; color: #888277; }
+        .view-btn:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+        .view-btn.active { background: #4a3728; border-color: #c99355; color: #fff; }
+        .view-btn.active span.time { color: #e5b982; }
+
+        /* Side Drawer - Collapsed by default */
+        .comparison-drawer {
+            position: absolute; top: 80px; right: 20px; width: 380px;
+            max-height: calc(100vh - 180px); background: rgba(18, 20, 24, 0.95);
+            backdrop-filter: blur(18px); border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 16px 48px rgba(0,0,0,0.7); z-index: 15;
+            display: flex; flex-direction: column; overflow: hidden;
+            transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s;
+        }
+        .comparison-drawer.collapsed { transform: translateX(420px); opacity: 0; pointer-events: none; }
+        .drawer-header {
+            padding: 14px 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(30, 34, 40, 0.7);
+        }
+        .drawer-header h3 { font-size: 14px; font-weight: 600; color: #f4ede1; }
+        .close-drawer-btn {
+            background: transparent; border: none; color: #8c867c; font-size: 20px;
+            cursor: pointer; padding: 2px 6px; border-radius: 6px; line-height: 1;
+        }
+        .close-drawer-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
+        .drawer-content { padding: 16px; overflow-y: auto; font-size: 13px; color: #ccc5b9; line-height: 1.6; }
+        .ref-image-wrapper {
+            width: 100%; border-radius: 10px; overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.15); margin-bottom: 12px;
+            background: #000; position: relative;
+        }
+        .ref-image-wrapper img { width: 100%; height: auto; display: block; }
+        .ref-image-tag {
+            position: absolute; bottom: 8px; left: 8px; background: rgba(0, 0, 0, 0.78);
+            font-size: 11px; color: #f7d794; padding: 2px 8px; border-radius: 4px; font-family: monospace;
+        }
+        .detail-card {
+            background: rgba(255, 255, 255, 0.04); border-radius: 8px; padding: 12px;
+            margin-bottom: 12px; border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .detail-card h4 { font-size: 13px; color: #e5b982; margin-bottom: 6px; }
+        .detail-card ul { padding-left: 18px; font-size: 12px; color: #b5b0a5; }
+        .detail-card li { margin-bottom: 4px; }
+
+        /* Help Overlay */
+        .help-overlay {
+            position: absolute; left: 20px; bottom: 24px; z-index: 10;
+            background: rgba(18, 20, 24, 0.88); backdrop-filter: blur(10px);
+            padding: 10px 16px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 11.5px; color: #9e978c; line-height: 1.5; pointer-events: none;
+        }
+        .help-overlay b { color: #e5d7c3; }
+
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; width: 8px; height: 8px;
+            background: rgba(255, 255, 255, 0.7); border-radius: 50%;
+            transform: translate(-50%, -50%); pointer-events: none; display: none; z-index: 20;
+        }
+    </style>
+</head>
+<body>
+    <div id="webgl-container"></div>
+    <div id="crosshair"></div>
+
+    <!-- Top Status HUD -->
+    <div class="top-bar">
+        <div class="title-badge">
+            <h1>
+                <span>传统北方山村院落群 · 3D高精度数字孪生</span>
+                <span class="status-tag">全景聚落逐栋重构</span>
+            </h1>
+            <div class="subtitle">六开间双套正房 · 西侧低矮红瓦附房 · 矩形干砌毛石院墙 · 门外连绵长坡 · 东厢房残垣 · 后檐双层白杨翠柏</div>
+        </div>
+
+        <div class="top-controls">
+            <button class="glass-btn" id="btn-toggle-drawer">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+                <span>实景视频对照</span>
+            </button>
+            <button class="glass-btn" id="btn-light-mode">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                <span id="light-label">晴朗正午</span>
+            </button>
+            <button class="glass-btn" id="btn-toggle-walk">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 4v16"/><path d="M17 8l-4-4-4 4"/></svg>
+                <span id="mode-label">漫游漫步视角</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Bottom Viewpoints Floating Bar -->
+    <div class="bottom-nav">
+        <button class="view-btn active" data-view="facade">
+            <span class="label">1. 双联正房与石围墙大院</span>
+            <span class="time">00:56 院落全貌</span>
+        </button>
+        <button class="view-btn" data-view="door">
+            <span class="label">2. 堂屋拱券大门</span>
+            <span class="time">03:00 斑驳门套与门神</span>
+        </button>
+        <button class="view-btn" data-view="west_stack">
+            <span class="label">3. 西套木门与瓦垛</span>
+            <span class="time">02:30 青瓦整齐堆码</span>
+        </button>
+        <button class="view-btn" data-view="west_annex">
+            <span class="label">4. 西侧红瓦附房紧邻</span>
+            <span class="time">01:44 紧挨正房/砖叠柱/柴堆</span>
+        </button>
+        <button class="view-btn" data-view="east_ladder">
+            <span class="label">5. 东次间木梯条凳</span>
+            <span class="time">03:10 靠墙斜梯</span>
+        </button>
+        <button class="view-btn" data-view="east_wing">
+            <span class="label">6. 房舍夹角与东厢房</span>
+            <span class="time">01:05 夹角通透无它房</span>
+        </button>
+        <button class="view-btn" data-view="west_compound">
+            <span class="label">7. 西侧山坡桃花果园</span>
+            <span class="time">02:20 果林与西坡全景</span>
+        </button>
+        <button class="view-btn" data-view="rear_alley">
+            <span class="label">8. 后檐翠柏夹道</span>
+            <span class="time">08:15 背风防风绿篱</span>
+        </button>
+        <button class="view-btn" data-view="rear_overview">
+            <span class="label">9. 后山俯瞰双坡顶</span>
+            <span class="time">05:20 后山林木与聚落全景</span>
+        </button>
+        <button class="view-btn" data-view="approach">
+            <span class="label">10. 院门外长坡与院落全景</span>
+            <span class="time">00:20 门外连绵长坡</span>
+        </button>
+    </div>
+
+    <!-- Comparison Drawer - Collapsed by default -->
+    <div class="comparison-drawer collapsed" id="comparison-drawer">
+        <div class="drawer-header">
+            <h3 id="drawer-title">实景视频与建筑特征对照</h3>
+            <button class="close-drawer-btn" id="close-drawer-btn">&times;</button>
+        </div>
+        <div class="drawer-content">
+            <div class="ref-image-wrapper">
+                <img id="ref-img" src="ref_images/ref_060s_main_facade.jpg" alt="Video Reference Frame">
+                <div class="ref-image-tag" id="ref-tag">M2U00577.MPG · 00:56</div>
+            </div>
+            <div class="detail-card">
+                <h4 id="detail-card-title">双联正房全貌 (00:56)</h4>
+                <div id="detail-card-body">
+                    <ul>
+                        <li><b>建筑规制：</b>双联排六开间硬山双坡顶，面宽约19.2米，进深约4.8米。</li>
+                        <li><b>廊柱系统：</b>7根方形水泥空心砌块柱贯通排列，双层烧结实心红砖基座防潮。</li>
+                        <li><b>构件细节：</b>中次间窗下整齐码放长瓦垛与红砖压顶，东次间斜靠木梯与长条凳。</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="detail-card">
+                <h4>3D场景交互操作</h4>
+                <ul style="color:#a8a29e;">
+                    <li><b>旋转观察：</b>按住鼠标左键拖动</li>
+                    <li><b>平移视角：</b>按住鼠标右键拖动</li>
+                    <li><b>缩放视图：</b>滑动鼠标滚轮</li>
+                    <li><b>第一人称漫步：</b>点击右上角“漫游漫步视角”或按键 [V]，使用 W/A/S/D 漫步</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="help-overlay">
+        <div>视角操作: <b>鼠标左键</b>旋转 · <b>右键</b>平移 · <b>滚轮</b>缩放</div>
+        <div>聚落探索: <b>点击底部按钮</b>平滑运镜至正房、西邻院落、后檐夹道等</div>
+    </div>
+
+    <script src="libs/three.min.js"></script>
+    <script src="libs/OrbitControls.js"></script>
+
+    <script>
+    // --- 1. Texture Pipeline ---
+    const texLoader = new THREE.TextureLoader();
+
+    function loadTexture(path, wrapS = THREE.ClampToEdgeWrapping, wrapT = THREE.ClampToEdgeWrapping, repeatX = 1, repeatY = 1) {
+        const tex = texLoader.load(path);
+        tex.wrapS = wrapS;
+        tex.wrapT = wrapT;
+        tex.repeat.set(repeatX, repeatY);
+        tex.encoding = THREE.sRGBEncoding;
+        return tex;
+    }
+
+    const tDoorEast = loadTexture('textures/doorway_full_patch.jpg');
+    const tDoorWest = loadTexture('textures/timber_door_leaves.jpg');
+    const tPillar = loadTexture('textures/tex_pillar_patch.jpg');
+    const tWindow = loadTexture('textures/win_casing_exact.jpg');
+    const tStack = loadTexture('textures/tex_stack_patch.jpg');
+    const tRoof = loadTexture('textures/tex_roof_patch.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 12, 2);
+    const tWing = loadTexture('textures/tex_wing_patch.jpg');
+    const tStoneWall = loadTexture('textures/tex_authentic_dry_stone.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 8, 2);
+    const tGatepost = loadTexture('textures/tex_authentic_dry_stone.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 1.2, 2.2);
+    const tCoping = loadTexture('textures/tex_authentic_dry_stone.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 6, 1);
+    const tStoneBoulder = loadTexture('textures/tex_authentic_dry_stone.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 1.5, 1.5);
+    const tStone = tStoneWall;
+    const tEarth = loadTexture('textures/pure_mud.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 4, 3);
+    const tGround = loadTexture('textures/tex_authentic_courtyard_ground.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 14, 14);
+    const tBrick = loadTexture('textures/brick_authentic_red.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 6, 4);
+    const tStackedBrick = loadTexture('textures/tex_video_stacked_brick_pillar.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 1, 3);
+    const tRedTile = loadTexture('textures/tex_terracotta_tiles_crisp.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 1, 1);
+    const tAnnexWall = loadTexture('textures/pure_mud.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 3, 2);
+    const tAnnexDoor = loadTexture('textures/tex_video_annex_door.jpg');
+    const tFirewood = loadTexture('textures/tex_video_firewood_exact.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 2, 1);
+    const tRapeseed = loadTexture('textures/rapeseed_field.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 10, 6);
+    const tStraw = loadTexture('textures/tex_straw_haystack.jpg', THREE.RepeatWrapping, THREE.RepeatWrapping, 2, 2);
+
+    const tTreePoplar = loadTexture('textures/tex_poplar_white_clean.png');
+    const tTreeCypress = loadTexture('textures/tex_cypress_clean.png');
+    const tTreePeach = loadTexture('textures/peach_real_alpha.png');
+
+    // --- 2. Scene Setup ---
+    const container = document.getElementById('webgl-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xb2cce6);
+    scene.fog = new THREE.FogExp2(0xc8dcf0, 0.005);
+
+    const camera = new THREE.PerspectiveCamera(46, window.innerWidth / window.innerHeight, 0.1, 700);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.98;
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2 - 0.01;
+    controls.minDistance = 2.0;
+    controls.maxDistance = 220.0;
+
+    // --- 3. Warm Natural Sunlight Calibration ---
+    const hemiLight = new THREE.HemisphereLight(0xfff7ed, 0x7a826e, 0.95);
+    scene.add(hemiLight);
+
+    const sunLight = new THREE.DirectionalLight(0xfffaec, 1.95);
+    sunLight.position.set(-28, 44, 32);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.camera.near = 0.5;
+    sunLight.shadow.camera.far = 200;
+    sunLight.shadow.camera.left = -40;
+    sunLight.shadow.camera.right = 40;
+    sunLight.shadow.camera.top = 40;
+    sunLight.shadow.camera.bottom = -40;
+    sunLight.shadow.bias = -0.0004;
+    scene.add(sunLight);
+
+    // Warm South-East Fill Light
+    const fillLight = new THREE.DirectionalLight(0xffdfb8, 0.65);
+    fillLight.position.set(24, 18, 15);
+    scene.add(fillLight);
+
+    // Front Veranda Ambient Soft Fill Light (防止檐下死黑, 还原阴影通透感)
+    const verandaFillLight = new THREE.DirectionalLight(0xffeedd, 0.70);
+    verandaFillLight.position.set(-6, 10, 22);
+    scene.add(verandaFillLight);
+
+    // South Yard & Approach Road Fill Light (确保石围墙外壁与坡道通透自然)
+    const southYardFillLight = new THREE.DirectionalLight(0xffeedd, 0.60);
+    southYardFillLight.position.set(-15, 12, 35);
+    scene.add(southYardFillLight);
+
+    // Cool Northern Sky Ambient Light (Illuminates rear wall & roof in alleyway and overview)
+    const northSkyLight = new THREE.DirectionalLight(0xdfe8f2, 1.45);
+    northSkyLight.position.set(0, 32, -35);
+    scene.add(northSkyLight);
+
+    const northFillLight = new THREE.DirectionalLight(0xdcd5c8, 0.85);
+    northFillLight.position.set(-8, 16, -22);
+    scene.add(northFillLight);
+
+    // Warm Courtyard Ground Bounce Light (消除阴影面死黑)
+    const courtBounceLight = new THREE.DirectionalLight(0xffecd0, 0.70);
+    courtBounceLight.position.set(0, 10, 20);
+    scene.add(courtBounceLight);
+
+    // --- 4. Materials with DoubleSide to guarantee solid lighting ---
+    const mEarth = new THREE.MeshStandardMaterial({
+        map: tEarth,
+        color: 0xd4b68e,
+        roughness: 0.90,
+        metalness: 0.01,
+        side: THREE.DoubleSide
+    });
+
+    const mWindow = new THREE.MeshStandardMaterial({
+        map: tWindow,
+        roughness: 0.86,
+        metalness: 0.02
+    });
+
+    const mDoorEast = new THREE.MeshStandardMaterial({
+        map: tDoorEast,
+        roughness: 0.88,
+        metalness: 0.02
+    });
+
+    const mDoorWest = new THREE.MeshStandardMaterial({
+        map: tDoorWest,
+        roughness: 0.88,
+        metalness: 0.02
+    });
+
+    const mRoof = new THREE.MeshStandardMaterial({
+        map: tRoof,
+        color: 0xdedede,
+        roughness: 0.90,
+        metalness: 0.02,
+        side: THREE.DoubleSide
+    });
+
+    const mRedTile = new THREE.MeshStandardMaterial({
+        map: tRedTile,
+        color: 0xbb4a34,
+        roughness: 0.85,
+        metalness: 0.01,
+        side: THREE.DoubleSide
+    });
+
+    const mStackedBrick = new THREE.MeshStandardMaterial({
+        map: tStackedBrick,
+        roughness: 0.88,
+        metalness: 0.03,
+        side: THREE.DoubleSide
+    });
+
+    const mAnnexEarth = new THREE.MeshStandardMaterial({
+        map: tAnnexWall,
+        roughness: 0.92,
+        metalness: 0.01,
+        side: THREE.DoubleSide
+    });
+
+    const mAnnexDoor = new THREE.MeshStandardMaterial({
+        map: tAnnexDoor,
+        roughness: 0.85
+    });
+
+    const mFirewood = new THREE.MeshStandardMaterial({
+        map: tFirewood,
+        roughness: 0.92
+    });
+
+    const mPillar = new THREE.MeshStandardMaterial({
+        map: tPillar,
+        roughness: 0.88,
+        metalness: 0.05
+    });
+
+    const mStoneWall = new THREE.MeshStandardMaterial({
+        map: tStoneWall,
+        roughness: 0.88,
+        metalness: 0.02,
+        side: THREE.DoubleSide
+    });
+
+    const mGatepost = new THREE.MeshStandardMaterial({
+        map: tGatepost,
+        roughness: 0.88,
+        metalness: 0.02,
+        side: THREE.DoubleSide
+    });
+
+    const mCoping = new THREE.MeshStandardMaterial({
+        map: tCoping,
+        roughness: 0.88,
+        metalness: 0.02,
+        side: THREE.DoubleSide
+    });
+
+    const mStoneBoulder = new THREE.MeshStandardMaterial({
+        map: tStoneBoulder,
+        roughness: 0.88,
+        metalness: 0.02,
+        side: THREE.DoubleSide
+    });
+
+    const mStone = mStoneWall;
+
+    const mGround = new THREE.MeshStandardMaterial({
+        map: tGround,
+        roughness: 0.96,
+        metalness: 0.02
+    });
+
+    const mRapeseed = new THREE.MeshStandardMaterial({
+        map: tRapeseed,
+        roughness: 0.88,
+        metalness: 0.01,
+        side: THREE.DoubleSide
+    });
+
+    const mWood = new THREE.MeshStandardMaterial({
+        color: 0x3d2b1f,
+        roughness: 0.86,
+        metalness: 0.03,
+        side: THREE.DoubleSide
+    });
+
+    const mRedBrick = new THREE.MeshStandardMaterial({
+        map: tBrick,
+        color: 0xb44934,
+        roughness: 0.86,
+        metalness: 0.02,
+        side: THREE.DoubleSide
+    });
+
+    const mStraw = new THREE.MeshStandardMaterial({
+        map: tStraw,
+        color: 0xc89855,
+        roughness: 0.94,
+        metalness: 0.02,
+        side: THREE.DoubleSide
+    });
+
+    // Terrain Elevation Function (平整大院落与阶梯梯田护坎)
+    function getTerrainY(x, z) {
+        if (z < -4.5) {
+            const dist = -z - 4.5;
+            let elev = Math.pow(dist * 0.18, 1.25);
+            if (x > 10.5 && z < -5.5) {
+                elev = Math.max(elev, 2.3 + (x - 10.5) * 0.04);
+            }
+            return elev;
+        } else if (z > 14.2) {
+            // Continuous natural descending hillside slope outside south courtyard wall & gate (门外连绵长坡)
+            const distZ = z - 14.2;
+            const gateDist = Math.abs(x - (-4.1));
+            const pathWeight = Math.max(0, 1.0 - Math.min(1.0, Math.max(0, gateDist - 1.2) / 3.0));
+            const baseSlope = distZ * 0.085;
+            const wallDrop = (1.0 - pathWeight) * 0.95;
+            const undulation = Math.sin(x * 0.10) * Math.cos(distZ * 0.12) * 0.08;
+            return -wallDrop - baseSlope + undulation;
+        } else if (x < -16.0 && z > 0) {
+            // West orchard slope
+            return -(Math.abs(x) - 16.0) * 0.14;
+        } else {
+            // Expansive flat courtyard drying ground (院坝/打谷场, x: -14 to +16, z: 0 to 14)
+            return Math.sin(x * 0.3) * Math.cos(z * 0.3) * 0.02;
+        }
+    }
+
+    // --- 5. Vast Mountain Village Topography (320m x 320m) ---
+    const groundGeo = new THREE.PlaneGeometry(320, 320, 120, 120);
+    const gPos = groundGeo.attributes.position;
+    for (let i = 0; i < gPos.count; i++) {
+        const x = gPos.getX(i);
+        const y = gPos.getY(i);
+        const worldZ = -y;
+        gPos.setZ(i, getTerrainY(x, worldZ));
+    }
+    groundGeo.computeVertexNormals();
+    const groundMesh = new THREE.Mesh(groundGeo, mGround);
+    groundMesh.rotation.x = -Math.PI / 2;
+    groundMesh.receiveShadow = true;
+    scene.add(groundMesh);
+
+    // Distant mountain panoramic cylinder
+    const mountainGeo = new THREE.CylinderGeometry(280, 320, 85, 64, 1, true);
+    const mountainMat = new THREE.MeshBasicMaterial({ color: 0x8a9eb2, side: THREE.BackSide, fog: true });
+    const mountainMesh = new THREE.Mesh(mountainGeo, mountainMat);
+    mountainMesh.position.y = 16;
+    scene.add(mountainMesh);
+
+    // --- 6. Natural Hillside Outside Gate (门外自然连绵长坡，无人工悬浮梯田盒) ---
+
+    // --- 7. Courtyard Dry Stone Perimeter Wall & Boulder Gateposts (院子周围石头垒砌围墙与门垛, 视频实景还原) ---
+    const stoneWallGroup = new THREE.Group();
+    scene.add(stoneWallGroup);
+
+    function buildWallRun(pts, wallH = 1.15, wallThick = 0.65, extraDown = 1.45) {
+        for (let p = 0; p < pts.length - 1; p++) {
+            const p1 = pts[p];
+            const p2 = pts[p+1];
+            const segLen = p1.distanceTo(p2);
+            const mid = p1.clone().add(p2).multiplyScalar(0.5);
+            const rotY = Math.atan2(p2.x - p1.x, p2.z - p1.z) - Math.PI / 2;
+
+            const totalH = wallH + extraDown;
+            const wallSeg = new THREE.Mesh(new THREE.BoxGeometry(segLen, totalH, wallThick), mStoneWall);
+            wallSeg.position.set(mid.x, mid.y - extraDown + totalH/2, mid.z);
+            wallSeg.rotation.y = rotY;
+            wallSeg.castShadow = true;
+            wallSeg.receiveShadow = true;
+            stoneWallGroup.add(wallSeg);
+
+            // Rustic Stone Coping Slabs on top (条石/毛石压顶)
+            const coping = new THREE.Mesh(new THREE.BoxGeometry(segLen + 0.1, 0.14, wallThick + 0.16), mCoping);
+            coping.position.set(mid.x, mid.y + wallH + 0.07, mid.z);
+            coping.rotation.y = rotY;
+            coping.castShadow = true;
+            coping.receiveShadow = true;
+            stoneWallGroup.add(coping);
+
+            // Natural base boulders along wall rim
+            const count = Math.max(1, Math.floor(segLen / 2.8));
+            for (let b = 0; b < count; b++) {
+                const t = (b + 0.5) / count;
+                const bx = p1.x + (p2.x - p1.x) * t;
+                const bz = p1.z + (p2.z - p1.z) * t;
+                const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(0.36 + (b % 2) * 0.12, 1), mStoneBoulder);
+                boulder.scale.set(1.2, 0.75, 1.15);
+                boulder.position.set(bx, mid.y + 0.15, bz);
+                boulder.castShadow = true;
+                stoneWallGroup.add(boulder);
+            }
+        }
+    }
+
+    // 1. South & East Courtyard Perimeter Wall (纯矩形南院墙与东院墙, 00:20-00:55实景)
+    const southEastWallPoints = [
+        new THREE.Vector3(-3.0, 0.0, 14.2),
+        new THREE.Vector3(16.2, 0.0, 14.2),
+        new THREE.Vector3(16.2, 0.0, 0.5)
+    ];
+    buildWallRun(southEastWallPoints, 1.15, 0.65, 1.50);
+
+    // 2. West & Southwest Courtyard Perimeter Wall (纯矩形西院墙与大门西侧南院墙)
+    const westWallPoints = [
+        new THREE.Vector3(-14.2, 0.0, 0.5),
+        new THREE.Vector3(-14.2, 0.0, 14.2),
+        new THREE.Vector3(-5.2, 0.0, 14.2)
+    ];
+    buildWallRun(westWallPoints, 1.15, 0.65, 1.45);
+
+    // Courtyard Entrance Boulder Gateposts (-5.2 & -3.0 at z = 14.2)
+    function addGatepost(gx, gz) {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.85, 1.0), mGatepost);
+        post.position.set(gx, 0.925, gz);
+        post.castShadow = true;
+        post.receiveShadow = true;
+        stoneWallGroup.add(post);
+
+        const cap = new THREE.Mesh(new THREE.BoxGeometry(1.20, 0.18, 1.20), mCoping);
+        cap.position.set(gx, 1.85 + 0.09, gz);
+        cap.castShadow = true;
+        stoneWallGroup.add(cap);
+
+        const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(0.55, 1), mStoneBoulder);
+        boulder.scale.set(1.25, 0.75, 1.15);
+        boulder.position.set(gx + (gx < -4.1 ? -0.45 : 0.45), 0.22, gz + 0.4);
+        boulder.castShadow = true;
+        stoneWallGroup.add(boulder);
+    }
+    addGatepost(-5.2, 14.2); // 西门垛 (00:30 实景大毛石门垛)
+    addGatepost(-3.0, 14.2);  // 东门垛
+
+    // --- 8. MAIN HOUSE: 双联六开间夯土正房 (19.2m x 4.8m) ---
+    const houseGroup = new THREE.Group();
+    scene.add(houseGroup);
+
+    const houseWidth = 19.2;
+    const halfWidth = houseWidth / 2; // 9.6m
+    const wallHeight = 2.75;
+    const pillarZ = 0.55;
+
+    // Raised Earthen & Cut-Stone Veranda Plinth (通长散水台基)
+    const plinthMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(houseWidth + 0.4, 0.18, 1.45),
+        new THREE.MeshStandardMaterial({ map: tGround, roughness: 0.95 })
+    );
+    plinthMesh.position.set(0, 0.09, 0.18);
+    plinthMesh.receiveShadow = true;
+    plinthMesh.castShadow = true;
+    houseGroup.add(plinthMesh);
+
+    // Cut Stone Curb (条石散水阶沿)
+    const curbMesh = new THREE.Mesh(new THREE.BoxGeometry(houseWidth + 0.4, 0.18, 0.14), mStone);
+    curbMesh.position.set(0, 0.09, 0.905);
+    curbMesh.castShadow = true;
+    curbMesh.receiveShadow = true;
+    houseGroup.add(curbMesh);
+
+    // House Interior Floor Base
+    const floorMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(houseWidth, 0.18, 4.6),
+        new THREE.MeshStandardMaterial({ color: 0xb59a72, roughness: 0.96 })
+    );
+    floorMesh.position.set(0, 0.09, -2.75);
+    houseGroup.add(floorMesh);
+
+    // Rear Solid Rammed-Earth Wall (后檐夯土实墙)
+    const rearWall = new THREE.Mesh(new THREE.BoxGeometry(houseWidth, wallHeight, 0.45), mEarth);
+    rearWall.position.set(0, 0.18 + wallHeight/2, -5.05);
+    rearWall.castShadow = true;
+    rearWall.receiveShadow = true;
+    houseGroup.add(rearWall);
+
+    // Stone footing along rear wall base in alley
+    const rearFooting = new THREE.Mesh(new THREE.BoxGeometry(houseWidth, 0.28, 0.25), mStone);
+    rearFooting.position.set(0, 0.14, -5.32);
+    rearFooting.castShadow = true;
+    rearFooting.receiveShadow = true;
+    houseGroup.add(rearFooting);
+
+    // Gable Walls with Triangular Gable Apex (两侧实心山墙)
+    const gableShape = new THREE.Shape();
+    gableShape.moveTo(0.55, 0);
+    gableShape.lineTo(-5.05, 0);
+    gableShape.lineTo(-5.05, wallHeight);
+    gableShape.lineTo(-2.25, 4.48);
+    gableShape.lineTo(0.55, wallHeight);
+    gableShape.closePath();
+
+    const gableGeo = new THREE.ExtrudeGeometry(gableShape, { depth: 0.45, bevelEnabled: false });
+
+    // West Gable Wall
+    const westGable = new THREE.Mesh(gableGeo, mEarth);
+    westGable.rotation.y = -Math.PI / 2;
+    westGable.position.set(-halfWidth + 0.45, 0.18, 0);
+    westGable.castShadow = true;
+    westGable.receiveShadow = true;
+    houseGroup.add(westGable);
+
+    // East Gable Wall
+    const eastGable = new THREE.Mesh(gableGeo, mEarth);
+    eastGable.rotation.y = -Math.PI / 2;
+    eastGable.position.set(halfWidth, 0.18, 0);
+    eastGable.castShadow = true;
+    eastGable.receiveShadow = true;
+    houseGroup.add(eastGable);
+
+    // Front Infill Rammed Earth Wall (前檐开窗夯土墙)
+    const frontWall = new THREE.Mesh(new THREE.BoxGeometry(houseWidth, wallHeight, 0.35), mEarth);
+    frontWall.position.set(0, 0.18 + wallHeight/2, -0.45);
+    frontWall.castShadow = true;
+    frontWall.receiveShadow = true;
+    houseGroup.add(frontWall);
+
+    // Bay 4: East Suite Main Arched Doorway (堂屋拱券大门, x = 4.8m)
+    const archedDoorFrame = new THREE.Mesh(new THREE.BoxGeometry(1.4, 2.45, 0.08), mDoorEast);
+    archedDoorFrame.position.set(4.8, 0.18 + 1.225, -0.24);
+    archedDoorFrame.castShadow = true;
+    houseGroup.add(archedDoorFrame);
+
+    const doorThresholdEast = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.16, 0.28), mStone);
+    doorThresholdEast.position.set(4.8, 0.18 + 0.08, -0.20);
+    doorThresholdEast.castShadow = true;
+    houseGroup.add(doorThresholdEast);
+
+    // Bay 3: West Suite Weathered Timber Door (西套住宅木板门, x = -4.8m)
+    const timberDoorWest = new THREE.Mesh(new THREE.BoxGeometry(1.15, 2.15, 0.06), mDoorWest);
+    timberDoorWest.position.set(-4.8, 0.18 + 1.075, -0.25);
+    timberDoorWest.castShadow = true;
+    houseGroup.add(timberDoorWest);
+
+    const doorThresholdWest = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.14, 0.24), mStone);
+    doorThresholdWest.position.set(-4.8, 0.18 + 0.07, -0.22);
+    doorThresholdWest.castShadow = true;
+    houseGroup.add(doorThresholdWest);
+
+    // Windows with Whitewashed Lime Borders (白灰饰边木窗, Bays 1, 2, 5, 6)
+    const winPositionsX = [-8.0, -1.6, 1.6, 8.0];
+    winPositionsX.forEach(wx => {
+        const winMesh = new THREE.Mesh(new THREE.BoxGeometry(1.15, 1.35, 0.06), mWindow);
+        winMesh.position.set(wx, 0.18 + 1.48, -0.25);
+        winMesh.castShadow = true;
+        houseGroup.add(winMesh);
+
+        const winSill = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.08, 0.16), mStone);
+        winSill.position.set(wx, 0.18 + 1.48 - 1.35/2 - 0.04, -0.20);
+        winSill.castShadow = true;
+        houseGroup.add(winSill);
+    });
+
+    // 3.8m Long Stack of Curved Roof Tiles with Red Brick Top (中次间窗下堆叠长瓦垛)
+    const tileStackGroup = new THREE.Group();
+    tileStackGroup.position.set(-0.3, 0.18, 0.02);
+
+    const mainStack = new THREE.Mesh(
+        new THREE.BoxGeometry(3.8, 0.82, 0.46),
+        new THREE.MeshStandardMaterial({ map: tStack, roughness: 0.88, metalness: 0.08 })
+    );
+    mainStack.position.y = 0.41;
+    mainStack.castShadow = true;
+    mainStack.receiveShadow = true;
+    tileStackGroup.add(mainStack);
+
+    // Red clay bricks topping the tile stack
+    const stackBrickCap = new THREE.Mesh(new THREE.BoxGeometry(3.75, 0.08, 0.44), mRedBrick);
+    stackBrickCap.position.y = 0.82 + 0.04;
+    stackBrickCap.castShadow = true;
+    tileStackGroup.add(stackBrickCap);
+
+    for (let lt = 0; lt < 18; lt++) {
+        const looseTile = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.18, 0.04), mRoof);
+        looseTile.rotation.y = 0.18;
+        looseTile.rotation.x = -0.32;
+        looseTile.position.set(-1.7 + lt * 0.2, 0.11 + (lt%3) * 0.03, 0.23);
+        looseTile.castShadow = true;
+        tileStackGroup.add(looseTile);
+    }
+    houseGroup.add(tileStackGroup);
+
+    // East Bay Leaning Wooden Straight Ladder & Long Bench (东次间靠墙斜木梯与长条矮凳)
+    const ladderGroup = new THREE.Group();
+    ladderGroup.position.set(7.6, 0.18, 0.38);
+    ladderGroup.rotation.x = -0.34;
+    ladderGroup.rotation.y = 0.08;
+
+    const railGeo = new THREE.BoxGeometry(0.08, 3.2, 0.1);
+    const leftRail = new THREE.Mesh(railGeo, mWood);
+    leftRail.position.set(-0.26, 1.55, 0);
+    leftRail.castShadow = true;
+    ladderGroup.add(leftRail);
+
+    const rightRail = new THREE.Mesh(railGeo, mWood);
+    rightRail.position.set(0.26, 1.55, 0);
+    rightRail.castShadow = true;
+    ladderGroup.add(rightRail);
+
+    for (let r = 0; r < 8; r++) {
+        const rung = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.52, 8), mWood);
+        rung.rotation.z = Math.PI / 2;
+        rung.position.set(0, 0.35 + r * 0.36, 0);
+        rung.castShadow = true;
+        ladderGroup.add(rung);
+    }
+    houseGroup.add(ladderGroup);
+
+    // Rustic Long Wooden Bench
+    const benchGroup = new THREE.Group();
+    benchGroup.position.set(6.6, 0.18, -0.15);
+    const benchTop = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.06, 0.32), mWood);
+    benchTop.position.y = 0.42;
+    benchTop.castShadow = true;
+    benchGroup.add(benchTop);
+    for (let bx of [-0.55, 0.55]) {
+        for (let bz of [-0.1, 0.1]) {
+            const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.42, 0.06), mWood);
+            leg.position.set(bx, 0.21, bz);
+            leg.castShadow = true;
+            benchGroup.add(leg);
+        }
+    }
+    houseGroup.add(benchGroup);
+
+    // 7 Veranda Columns: Concrete Cinder Blocks & Red Brick Footings
+    // 西端立柱 (px = -9.6) 为烧结砖/泥土砖叠砌柱体 (01:44 实景)
+    const pillarPositionsX = [-9.6, -6.4, -3.2, 0.0, 3.2, 6.4, 9.6];
+    pillarPositionsX.forEach(px => {
+        const brickBase = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.16, 0.44), mRedBrick);
+        brickBase.position.set(px, 0.18 + 0.08, pillarZ);
+        brickBase.castShadow = true;
+        brickBase.receiveShadow = true;
+        houseGroup.add(brickBase);
+
+        const colMat = (px === -9.6) ? mStackedBrick : mPillar;
+        const shaftMesh = new THREE.Mesh(new THREE.BoxGeometry(0.36, 2.35, 0.36), colMat);
+        shaftMesh.position.set(px, 0.18 + 0.16 + 2.35/2, pillarZ);
+        shaftMesh.castShadow = true;
+        shaftMesh.receiveShadow = true;
+        houseGroup.add(shaftMesh);
+    });
+
+    // 廊柱旁堆叠柴火堆 (Firewood Stack beside concrete pillar, 01:44 实景: 位于西次间立柱右侧)
+    const firewoodMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1.25, 0.46, 0.45),
+        mFirewood
+    );
+    firewoodMesh.position.set(-5.65, 0.18 + 0.23, 0.05);
+    firewoodMesh.castShadow = true;
+    firewoodMesh.receiveShadow = true;
+    houseGroup.add(firewoodMesh);
+
+    // Longitudinal Timber Tie-Beam (通长木质檐枋)
+    const eaveBeam = new THREE.Mesh(new THREE.BoxGeometry(houseWidth + 0.4, 0.22, 0.28), mWood);
+    eaveBeam.position.set(0, 0.18 + 2.58, pillarZ);
+    eaveBeam.castShadow = true;
+    houseGroup.add(eaveBeam);
+
+    // Transverse Cross-Beams
+    pillarPositionsX.forEach(px => {
+        const tie = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.2, 1.05), mWood);
+        tie.position.set(px, 0.18 + 2.55, 0.02);
+        tie.castShadow = true;
+        houseGroup.add(tie);
+    });
+
+    // 70 Exposed Eave Rafter Tails (挑檐椽条序列)
+    const numRafters = 70;
+    const rSpacing = (houseWidth + 0.4) / numRafters;
+    for (let i = 0; i <= numRafters; i++) {
+        const rx = -halfWidth - 0.2 + i * rSpacing;
+        const rafter = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.75), mWood);
+        rafter.rotation.x = 0.54;
+        rafter.position.set(rx, 0.18 + 2.68, pillarZ + 0.22);
+        rafter.castShadow = true;
+        houseGroup.add(rafter);
+    }
+
+    // CONTINUOUS DUAL-PITCH ROOF (连绵双坡硬山青瓦大屋顶)
+    // Front Roof Slope
+    const frontRoofGeo = new THREE.PlaneGeometry(houseWidth + 0.6, 3.75, 24, 8);
+    const frontRoof = new THREE.Mesh(frontRoofGeo, mRoof);
+    frontRoof.rotation.x = -Math.PI / 2 + 0.54;
+    frontRoof.position.set(0, 0.18 + 3.7, -0.65);
+    frontRoof.castShadow = true;
+    frontRoof.receiveShadow = true;
+    houseGroup.add(frontRoof);
+
+    // Rear Roof Slope (Overhangs alleyway)
+    const rearRoofGeo = new THREE.PlaneGeometry(houseWidth + 0.6, 3.75, 24, 8);
+    const rearRoof = new THREE.Mesh(rearRoofGeo, mRoof);
+    rearRoof.rotation.x = -Math.PI / 2 - 0.54;
+    rearRoof.position.set(0, 0.18 + 3.7, -3.85);
+    rearRoof.castShadow = true;
+    rearRoof.receiveShadow = true;
+    houseGroup.add(rearRoof);
+
+    // Dark Eaves Fascia Board
+    const fasciaBoard = new THREE.Mesh(
+        new THREE.BoxGeometry(houseWidth + 0.6, 0.14, 0.08),
+        new THREE.MeshStandardMaterial({ color: 0x221a12, roughness: 0.9 })
+    );
+    fasciaBoard.position.set(0, 0.18 + 2.76, 0.96);
+    fasciaBoard.castShadow = true;
+    houseGroup.add(fasciaBoard);
+
+    // Veranda Soffit
+    const underRoof = new THREE.Mesh(
+        new THREE.PlaneGeometry(houseWidth + 0.4, 1.4),
+        new THREE.MeshStandardMaterial({ color: 0x261e14, roughness: 0.9 })
+    );
+    underRoof.rotation.x = Math.PI / 2 - 0.54;
+    underRoof.position.set(0, 0.18 + 2.82, 0.15);
+    houseGroup.add(underRoof);
+
+    // Whitewashed Lime Mortar Ridge Cresting (白灰正脊)
+    const ridgeMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(houseWidth + 0.7, 0.26, 0.38),
+        new THREE.MeshStandardMaterial({ color: 0xe5dfd7, roughness: 0.8 })
+    );
+    ridgeMesh.position.set(0, 0.18 + 4.65 + 0.12, -2.25);
+    ridgeMesh.castShadow = true;
+    houseGroup.add(ridgeMesh);
+
+    // Central Ridge Flashing Band (中轴双套交接灰脊)
+    const centerRidgeFlashing = new THREE.Mesh(
+        new THREE.BoxGeometry(0.55, 0.32, 0.44),
+        new THREE.MeshStandardMaterial({ color: 0xece6dc, roughness: 0.85 })
+    );
+    centerRidgeFlashing.position.set(0, 0.18 + 4.65 + 0.15, -2.25);
+    houseGroup.add(centerRidgeFlashing);
+
+    // Upturned Ridge Finials (传统起翘脊头)
+    for (let endX of [-halfWidth - 0.35, halfWidth + 0.35]) {
+        const finial = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.48, 4), new THREE.MeshStandardMaterial({ color: 0xdfd9ce, roughness: 0.8 }));
+        finial.position.set(endX, 0.18 + 4.88, -2.25);
+        finial.rotation.z = endX < 0 ? 0.38 : -0.38;
+        houseGroup.add(finial);
+    }
+
+    // --- 9. WEST LOW RED-TILED ANNEX SHED (西侧低矮红瓦附房/柴火房, 紧邻正房 01:44 实景) ---
+    const annexGroup = new THREE.Group();
+    scene.add(annexGroup);
+
+    // 附房紧挨正房西山墙 (x = -9.6), 无任何缝隙隔道
+    const AW = 4.2;
+    const annexX_east = -9.6;
+    const annexX_west = annexX_east - AW; // -13.8
+    const annexZ_north = -4.5;
+    const annexZ_southWall = -0.35; // 凹进的前墙
+    const annexZ_eaveSouth = 0.85;  // 前檐挑檐
+    const annexZ_eaveNorth = -4.75;
+    const annexX_eaveWest = -14.05;
+
+    const annexEaveH = 2.05;
+    const annexRidgeH = 3.45;
+    const annexRidgeZ = (annexZ_eaveSouth + annexZ_eaveNorth) / 2; // -1.95m
+    const annexHipX = -12.3; // 西侧四坡斜脊起点
+
+    // 1. South Wall (凹进的土坯前墙, z = annexZ_southWall)
+    const annexSouthWallMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(AW, annexEaveH, 0.35),
+        mAnnexEarth
+    );
+    annexSouthWallMesh.position.set((annexX_east + annexX_west)/2, 0.18 + annexEaveH/2, annexZ_southWall);
+    annexSouthWallMesh.castShadow = true;
+    annexSouthWallMesh.receiveShadow = true;
+    annexGroup.add(annexSouthWallMesh);
+
+    // 2. North Rear Wall
+    const annexNorthWallMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(AW, annexEaveH, 0.35),
+        mAnnexEarth
+    );
+    annexNorthWallMesh.position.set((annexX_east + annexX_west)/2, 0.18 + annexEaveH/2, annexZ_north);
+    annexNorthWallMesh.castShadow = true;
+    annexNorthWallMesh.receiveShadow = true;
+    annexGroup.add(annexNorthWallMesh);
+
+    // 3. West Wall (x = annexX_west)
+    const annexWestWallMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.35, annexEaveH, Math.abs(annexZ_north - annexZ_southWall)),
+        mAnnexEarth
+    );
+    annexWestWallMesh.position.set(annexX_west, 0.18 + annexEaveH/2, (annexZ_north + annexZ_southWall)/2);
+    annexWestWallMesh.castShadow = true;
+    annexWestWallMesh.receiveShadow = true;
+    annexGroup.add(annexWestWallMesh);
+
+    // 4. East Wall flush against main house west gable
+    const annexEastWallMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.35, annexEaveH, Math.abs(annexZ_north - annexZ_southWall)),
+        mAnnexEarth
+    );
+    annexEastWallMesh.position.set(annexX_east, 0.18 + annexEaveH/2, (annexZ_north + annexZ_southWall)/2);
+    annexEastWallMesh.castShadow = true;
+    annexGroup.add(annexEastWallMesh);
+
+    // 5. Recessed Timber Door with Paper Poster (01:44 实景: 紧靠主房砖叠柱与西山墙)
+    const annexDoor = new THREE.Mesh(new THREE.BoxGeometry(0.88, 1.80, 0.06), mAnnexDoor);
+    annexDoor.position.set(-10.25, 0.18 + 0.90, annexZ_southWall + 0.18);
+    annexDoor.castShadow = true;
+    annexGroup.add(annexDoor);
+
+    // 6. Southwest Eave Corner Support Column (01:44 实景: 附房左前角立柱支撑挑檐)
+    const annexPost = new THREE.Mesh(new THREE.BoxGeometry(0.18, annexEaveH, 0.18), new THREE.MeshStandardMaterial({ color: 0x2b1e16, roughness: 0.88 }));
+    annexPost.position.set(annexX_west + 0.15, 0.18 + annexEaveH/2, annexZ_eaveSouth - 0.15);
+    annexPost.castShadow = true;
+    annexGroup.add(annexPost);
+
+    // Front eave fascia beam connecting corner post to main house column
+    const annexEaveBeam = new THREE.Mesh(new THREE.BoxGeometry(AW + 0.35, 0.16, 0.16), new THREE.MeshStandardMaterial({ color: 0x2b1e16, roughness: 0.88 }));
+    annexEaveBeam.position.set((annexX_east + annexX_west)/2, 0.18 + annexEaveH, annexZ_eaveSouth - 0.15);
+    annexEaveBeam.castShadow = true;
+    annexGroup.add(annexEaveBeam);
+
+    // 7. HIPPED RED TILE ROOF (真实烧结红陶平瓦四坡顶, 与视频实景完全一致)
+    // South Slope (Trapezoid from ridge to south eave)
+    const southSlopeGeo = new THREE.BufferGeometry();
+    const s_vertices = new Float32Array([
+        // Triangle 1: (RE, SW, SE)
+        annexX_east, 0.18 + annexRidgeH, annexRidgeZ,
+        annexX_eaveWest, 0.18 + annexEaveH, annexZ_eaveSouth,
+        annexX_east, 0.18 + annexEaveH, annexZ_eaveSouth,
+        // Triangle 2: (RE, RW, SW)
+        annexX_east, 0.18 + annexRidgeH, annexRidgeZ,
+        annexHipX, 0.18 + annexRidgeH, annexRidgeZ,
+        annexX_eaveWest, 0.18 + annexEaveH, annexZ_eaveSouth,
+    ]);
+    const s_uvs = new Float32Array([
+        0, 6.0,
+        8.0, 0,
+        0, 0,
+        0, 6.0,
+        5.2, 6.0,
+        8.0, 0
+    ]);
+    southSlopeGeo.setAttribute('position', new THREE.BufferAttribute(s_vertices, 3));
+    southSlopeGeo.setAttribute('uv', new THREE.BufferAttribute(s_uvs, 2));
+    southSlopeGeo.computeVertexNormals();
+    const southSlopeMesh = new THREE.Mesh(southSlopeGeo, mRedTile);
+    southSlopeMesh.castShadow = true;
+    southSlopeMesh.receiveShadow = true;
+    annexGroup.add(southSlopeMesh);
+
+    // West Hip Slope (Triangle from hip apex to west eave)
+    const westSlopeGeo = new THREE.BufferGeometry();
+    const w_vertices = new Float32Array([
+        annexHipX, 0.18 + annexRidgeH, annexRidgeZ,
+        annexX_eaveWest, 0.18 + annexEaveH, annexZ_eaveNorth,
+        annexX_eaveWest, 0.18 + annexEaveH, annexZ_eaveSouth,
+    ]);
+    const w_uvs = new Float32Array([
+        4.0, 6.0,
+        8.0, 0,
+        0, 0
+    ]);
+    westSlopeGeo.setAttribute('position', new THREE.BufferAttribute(w_vertices, 3));
+    westSlopeGeo.setAttribute('uv', new THREE.BufferAttribute(w_uvs, 2));
+    westSlopeGeo.computeVertexNormals();
+    const westSlopeMesh = new THREE.Mesh(westSlopeGeo, mRedTile);
+    westSlopeMesh.castShadow = true;
+    westSlopeMesh.receiveShadow = true;
+    annexGroup.add(westSlopeMesh);
+
+    // North Slope (Trapezoid from ridge to north eave)
+    const northSlopeGeo = new THREE.BufferGeometry();
+    const n_vertices = new Float32Array([
+        // Triangle 1: (RW, NE, NW)
+        annexHipX, 0.18 + annexRidgeH, annexRidgeZ,
+        annexX_east, 0.18 + annexEaveH, annexZ_eaveNorth,
+        annexX_eaveWest, 0.18 + annexEaveH, annexZ_eaveNorth,
+        // Triangle 2: (RW, RE, NE)
+        annexHipX, 0.18 + annexRidgeH, annexRidgeZ,
+        annexX_east, 0.18 + annexRidgeH, annexRidgeZ,
+        annexX_east, 0.18 + annexEaveH, annexZ_eaveNorth,
+    ]);
+    const n_uvs = new Float32Array([
+        5.2, 6.0,
+        0, 0,
+        8.0, 0,
+        5.2, 6.0,
+        0, 6.0,
+        0, 0
+    ]);
+    northSlopeGeo.setAttribute('position', new THREE.BufferAttribute(n_vertices, 3));
+    northSlopeGeo.setAttribute('uv', new THREE.BufferAttribute(n_uvs, 2));
+    northSlopeGeo.computeVertexNormals();
+    const northSlopeMesh = new THREE.Mesh(northSlopeGeo, mRedTile);
+    northSlopeMesh.castShadow = true;
+    northSlopeMesh.receiveShadow = true;
+    annexGroup.add(northSlopeMesh);
+
+    // White Plaster Ridge Cap
+    const ridgeCapMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(Math.abs(annexX_east - annexHipX) + 0.2, 0.12, 0.24),
+        new THREE.MeshStandardMaterial({ color: 0xdfdcd5, roughness: 0.8 })
+    );
+    ridgeCapMesh.position.set((annexX_east + annexHipX)/2, 0.18 + annexRidgeH + 0.06, annexRidgeZ);
+    ridgeCapMesh.castShadow = true;
+    annexGroup.add(ridgeCapMesh);
+
+    // Stone Slab Pavers in West Lane Walkway (西侧外道石板小径, 位于附房西侧外)
+    for (let sp = 0; sp < 8; sp++) {
+        const paver = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.08, 0.6), mStone);
+        paver.position.set(-halfWidth - AW - 0.85, 0.06, -4.5 + sp * 0.95);
+        paver.receiveShadow = true;
+        scene.add(paver);
+    }
+
+    // --- 10. WEST COMPOUND & HILLSIDE APPROACH ---
+    // (Notice: As requested, the neighboring red house and chimney outside the wall have been removed)
+
+    // Diagonal wood prop leaning at main house east corner (视频01:05实景主房东侧斜撑木)
+    const strutGeo = new THREE.CylinderGeometry(0.06, 0.08, 3.2, 8);
+    const strutMesh = new THREE.Mesh(strutGeo, mWood);
+    strutMesh.position.set(9.65, 1.35, -0.2);
+    strutMesh.rotation.z = -0.38;
+    strutMesh.rotation.x = 0.22;
+    strutMesh.castShadow = true;
+    scene.add(strutMesh);
+
+    // --- 11. EAST WING OUTBUILDING (东厢房 / 侧屋, 01:05-01:50, 04:15) ---
+    const wingGroup = new THREE.Group();
+    wingGroup.position.set(12.8, 0, 3.2);
+    scene.add(wingGroup);
+
+    const WW = 3.8;
+    const WL = 6.8;
+    const WEaveH = 2.45;
+    const WRidgeH = 3.35;
+
+    // Solid Rammed Earth Walls
+    const wNorthWall = new THREE.Mesh(new THREE.BoxGeometry(WW, WEaveH, 0.38), mEarth);
+    wNorthWall.position.set(0, 0.18 + WEaveH/2, -WL/2);
+    wNorthWall.castShadow = true;
+    wingGroup.add(wNorthWall);
+
+    const wEastWall = new THREE.Mesh(new THREE.BoxGeometry(0.38, WEaveH, WL), mEarth);
+    wEastWall.position.set(WW/2 - 0.19, 0.18 + WEaveH/2, 0);
+    wEastWall.castShadow = true;
+    wingGroup.add(wEastWall);
+
+    // South Gable Wall (Triangle up to Ridge)
+    const wSouthWall = new THREE.Mesh(new THREE.BoxGeometry(WW, WEaveH, 0.38), mEarth);
+    wSouthWall.position.set(0, 0.18 + WEaveH/2, WL/2);
+    wSouthWall.castShadow = true;
+    wingGroup.add(wSouthWall);
+
+    // --- WEST WALL FACING COURTYARD (西立面: 木门、高置直棂木窗、西南塌角残垣, 严格依据01:05实景还原) ---
+    // 1. North Corner Wall Pier (北角墙垛, z: -3.4 to -2.6, len: 0.8m)
+    const wNorthPier = new THREE.Mesh(new THREE.BoxGeometry(0.38, WEaveH, 0.8), mEarth);
+    wNorthPier.position.set(-WW/2 + 0.19, 0.18 + WEaveH/2, -3.0);
+    wNorthPier.castShadow = true;
+    wNorthPier.receiveShadow = true;
+    wingGroup.add(wNorthPier);
+
+    // 2. Wing Entrance Doorway & Wooden Door (一扇门, z: -2.6 to -1.65, center: -2.125, width: 0.95m)
+    // Wall lintel above door (y: 1.95m to 2.45m)
+    const wDoorLintelWall = new THREE.Mesh(new THREE.BoxGeometry(0.38, WEaveH - 1.95, 0.95), mEarth);
+    wDoorLintelWall.position.set(-WW/2 + 0.19, 0.18 + 1.95 + (WEaveH - 1.95)/2, -2.125);
+    wDoorLintelWall.castShadow = true;
+    wingGroup.add(wDoorLintelWall);
+
+    // Stone threshold at door base
+    const wThreshold = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.12, 1.05), mStone);
+    wThreshold.position.set(-WW/2 + 0.19, 0.18 + 0.06, -2.125);
+    wThreshold.castShadow = true;
+    wingGroup.add(wThreshold);
+
+    // Whitewashed lime plaster door casing frame (白灰门套边框)
+    const wDoorCasingMat = new THREE.MeshStandardMaterial({ color: 0xd8d4cb, roughness: 0.9 });
+    const wDoorCasingTop = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.10, 1.05), wDoorCasingMat);
+    wDoorCasingTop.position.set(-WW/2 - 0.01, 0.18 + 1.95, -2.125);
+    wingGroup.add(wDoorCasingTop);
+
+    const wDoorCasingL = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.95, 0.08), wDoorCasingMat);
+    wDoorCasingL.position.set(-WW/2 - 0.01, 0.18 + 1.95/2, -2.6 + 0.04);
+    wingGroup.add(wDoorCasingL);
+
+    const wDoorCasingR = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.95, 0.08), wDoorCasingMat);
+    wDoorCasingR.position.set(-WW/2 - 0.01, 0.18 + 1.95/2, -1.65 - 0.04);
+    wingGroup.add(wDoorCasingR);
+
+    // Weathered timber board door with paper poster (老杉木门板与门芯白纸)
+    const wDoorMesh = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.88, 0.88), mDoorWest);
+    wDoorMesh.position.set(-WW/2 + 0.12, 0.18 + 0.10 + 1.88/2, -2.125);
+    wDoorMesh.castShadow = true;
+    wingGroup.add(wDoorMesh);
+
+    // Paper poster on door panel (门心方斗白纸/春联红纸)
+    const wPaperPoster = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.36, 0.48),
+        new THREE.MeshStandardMaterial({ color: 0xeae4d6, roughness: 0.8, side: THREE.DoubleSide })
+    );
+    wPaperPoster.rotation.y = -Math.PI / 2;
+    wPaperPoster.position.set(-WW/2 + 0.08, 0.18 + 1.25, -2.125);
+    wingGroup.add(wPaperPoster);
+
+    // 3. Middle Wall Pier between Door & Window (中间隔墙垛, z: -1.65 to -0.55, len: 1.10m)
+    const wMidPier = new THREE.Mesh(new THREE.BoxGeometry(0.38, WEaveH, 1.10), mEarth);
+    wMidPier.position.set(-WW/2 + 0.19, 0.18 + WEaveH/2, -1.10);
+    wMidPier.castShadow = true;
+    wMidPier.receiveShadow = true;
+    wingGroup.add(wMidPier);
+
+    // 4. Barred Wooden Window (直棂木窗 - 严格抬高至离地0.95米窗台, 绝不在地上!)
+    // 窗下实心夯土基墙 (Solid wall beneath window: height 0.95m from ground, z: -0.55 to 0.75, width 1.30m)
+    const wWinBottomWall = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.95, 1.30), mEarth);
+    wWinBottomWall.position.set(-WW/2 + 0.19, 0.18 + 0.95/2, 0.10);
+    wWinBottomWall.castShadow = true;
+    wWinBottomWall.receiveShadow = true;
+    wingGroup.add(wWinBottomWall);
+
+    // 窗顶实心夯土过梁墙 (Solid wall above window: height 0.40m to eave)
+    const wWinTopWall = new THREE.Mesh(new THREE.BoxGeometry(0.38, WEaveH - 2.05, 1.30), mEarth);
+    wWinTopWall.position.set(-WW/2 + 0.19, 0.18 + 2.05 + (WEaveH - 2.05)/2, 0.10);
+    wWinTopWall.castShadow = true;
+    wWinTopWall.receiveShadow = true;
+    wingGroup.add(wWinTopWall);
+
+    // Cut-stone window sill (窗台条石)
+    const wWinSill = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.08, 1.36), mStone);
+    wWinSill.position.set(-WW/2 + 0.19, 0.18 + 0.95 - 0.04, 0.10);
+    wWinSill.castShadow = true;
+    wingGroup.add(wWinSill);
+
+    // Whitewashed lime plaster window casing frame (白灰饰边窗套)
+    const wWinFrameMesh = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.15, 1.25), mWindow);
+    wWinFrameMesh.position.set(-WW/2 + 0.16, 0.18 + 0.95 + 1.10/2, 0.10);
+    wWinFrameMesh.castShadow = true;
+    wingGroup.add(wWinFrameMesh);
+
+    // Authentic vertical wooden bars (直木棂条, 5 vertical bars + central crossbar)
+    for (let bar = 0; bar < 5; bar++) {
+        const barZ = 0.10 - 0.42 + bar * 0.21;
+        const vBar = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 1.05, 8), mWood);
+        vBar.position.set(-WW/2 + 0.16, 0.18 + 0.95 + 1.05/2, barZ);
+        vBar.castShadow = true;
+        wingGroup.add(vBar);
+    }
+    const hBar = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 1.10), mWood);
+    hBar.position.set(-WW/2 + 0.16, 0.18 + 0.95 + 0.55, 0.10);
+    hBar.castShadow = true;
+    wingGroup.add(hBar);
+
+    // 5. Southwest Collapsed Corner Adobe Breach (西南塌角残垣与土堆, z: 0.75 to 3.4)
+    // Stepped Jagged Adobe Brick Foundation Blocks
+    for (let ab = 0; ab < 3; ab++) {
+        const stepBlock = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.42 + ab * 0.24, 0.55), mEarth);
+        stepBlock.position.set(-WW/2 + 0.19, 0.18 + (0.42 + ab * 0.24)/2, 2.6 - ab * 0.45);
+        stepBlock.castShadow = true;
+        wingGroup.add(stepBlock);
+    }
+
+    // Exposed Interior Timber Rafters Visible through Breach
+    for (let r = 0; r < 4; r++) {
+        const purlin = new THREE.Mesh(new THREE.BoxGeometry(WW - 0.6, 0.10, 0.10), mWood);
+        purlin.position.set(0.15, 0.18 + 2.05 + r * 0.22, 1.2 + r * 0.4);
+        purlin.castShadow = true;
+        wingGroup.add(purlin);
+    }
+
+    // East Wing Dual-Pitch Grey Tile Roof (Correctly Oriented: Ridge along Z axis!)
+    const wRoofWidth = Math.hypot(WW/2, WRidgeH - WEaveH) + 0.25;
+    const wRoofPitch = Math.atan2(WRidgeH - WEaveH, WW/2);
+
+    // West Roof Slope (Pitching down toward yard / -X)
+    const wRoofW = new THREE.Mesh(new THREE.PlaneGeometry(wRoofWidth, WL + 0.4), mRoof);
+    wRoofW.rotation.order = 'ZXY';
+    wRoofW.rotation.set(-Math.PI / 2, 0, wRoofPitch);
+    wRoofW.position.set(-WW/4, 0.18 + (WEaveH + WRidgeH)/2, 0);
+    wRoofW.castShadow = true;
+    wingGroup.add(wRoofW);
+
+    // East Roof Slope (Pitching down toward east / +X)
+    const wRoofE = new THREE.Mesh(new THREE.PlaneGeometry(wRoofWidth, WL + 0.4), mRoof);
+    wRoofE.rotation.order = 'ZXY';
+    wRoofE.rotation.set(-Math.PI / 2, 0, -wRoofPitch);
+    wRoofE.position.set(WW/4, 0.18 + (WEaveH + WRidgeH)/2, 0);
+    wRoofE.castShadow = true;
+    wingGroup.add(wRoofE);
+
+    // East Wing Triangular Gable Fill (North and South gables up to ridge)
+    const wGableShape = new THREE.Shape();
+    wGableShape.moveTo(-WW/2, 0);
+    wGableShape.lineTo(WW/2, 0);
+    wGableShape.lineTo(0, WRidgeH - WEaveH);
+    wGableShape.closePath();
+    const wGableGeo = new THREE.ExtrudeGeometry(wGableShape, { depth: 0.38, bevelEnabled: false });
+
+    // South Gable Triangle
+    const wSouthGableTri = new THREE.Mesh(wGableGeo, mEarth);
+    wSouthGableTri.position.set(0, 0.18 + WEaveH, WL/2 - 0.38);
+    wSouthGableTri.castShadow = true;
+    wingGroup.add(wSouthGableTri);
+
+    // North Gable Triangle
+    const wNorthGableTri = new THREE.Mesh(wGableGeo, mEarth);
+    wNorthGableTri.position.set(0, 0.18 + WEaveH, -WL/2);
+    wNorthGableTri.castShadow = true;
+    wingGroup.add(wNorthGableTri);
+
+    // White Ridge for East Wing
+    const wRidge = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.18, WL + 0.5), new THREE.MeshStandardMaterial({ color: 0xdfd9ce, roughness: 0.8 }));
+    wRidge.position.set(0, 0.18 + WRidgeH + 0.06, 0);
+    wRidge.castShadow = true;
+    wingGroup.add(wRidge);
+
+    // Collapsed adobe debris mound under the breach (视频01:05实景残土堆)
+    const moundGeo = new THREE.ConeGeometry(0.85, 0.38, 12);
+    const moundMesh = new THREE.Mesh(moundGeo, mEarth);
+    moundMesh.position.set(-WW/2 + 0.35, 0.18 + 0.19, 1.8);
+    moundMesh.castShadow = true;
+    moundMesh.receiveShadow = true;
+    wingGroup.add(moundMesh);
+
+    // Notice: As verified directly from video frame 01:05 and user correction,
+    // the corner/gap between the main house and east wing is an open corridor
+    // with NO connecting gatehouse and NO second farmhouse behind it.
+    // Behind the gap are only the natural hillside slope, green evergreen cypresses, poplars, and open sky.
+
+    // Notice: As requested, behind the house there are no granaries or haystacks.
+    // Behind the rear wall are strictly the natural hillside slope and the two rows of windbreak trees.
+
+    // --- 14. REAR ALLEY WINDBREAK: ROW 1 - DENSE EVERGREEN CYPRESSES (屋后第一排: 翠柏防风绿篱, 08:15) ---
+    const cypressGroup = new THREE.Group();
+    scene.add(cypressGroup);
+
+    const matCypress = new THREE.MeshStandardMaterial({
+        map: tTreeCypress,
+        alphaTest: 0.20,
+        roughness: 0.85,
+        side: THREE.DoubleSide
+    });
+
+    function addCypressTree(x, z, w = 2.4, h = 5.2) {
+        const baseY = getTerrainY(x, z);
+        const pGeo = new THREE.PlaneGeometry(w, h);
+        for (let a = 0; a < 2; a++) {
+            const m = new THREE.Mesh(pGeo, matCypress);
+            m.position.set(x, baseY + h/2, z);
+            m.rotation.y = a * (Math.PI / 2);
+            m.castShadow = true;
+            cypressGroup.add(m);
+        }
+    }
+
+    // Row 1: Dense Evergreen Cypresses along rear slope bank (z = -7.0m)
+    for (let c = -11.5; c <= 11.5; c += 1.35) {
+        const hVar = 5.2 + Math.sin(c * 1.5) * 0.45;
+        const wVar = 2.3 + Math.cos(c * 2.0) * 0.20;
+        addCypressTree(c, -7.0, wVar, hVar);
+    }
+
+    // --- 15. REAR HILLSIDE: ROW 2 - TALL WHITE POPLARS (屋后第二排: 高大挺拔白杨树群, 00:56实景) ---
+    const treeGroup = new THREE.Group();
+    scene.add(treeGroup);
+
+    const matPoplar = new THREE.MeshStandardMaterial({
+        map: tTreePoplar,
+        alphaTest: 0.18,
+        roughness: 0.88,
+        side: THREE.DoubleSide
+    });
+
+    const matPeach = new THREE.MeshStandardMaterial({
+        map: tTreePeach,
+        alphaTest: 0.28,
+        roughness: 0.8,
+        side: THREE.DoubleSide
+    });
+
+    function addPoplarTree(x, z, width = 5.2, height = 15.5) {
+        const baseY = getTerrainY(x, z);
+        const planeGeo = new THREE.PlaneGeometry(width, height);
+        // Star pattern with 3 planes for volumetric 360-degree look
+        for (let a = 0; a < 3; a++) {
+            const m = new THREE.Mesh(planeGeo, matPoplar);
+            m.position.set(x, baseY + height/2, z);
+            m.rotation.y = (a * Math.PI) / 3 + ((x * 13) % 0.3);
+            m.castShadow = true;
+            treeGroup.add(m);
+        }
+    }
+
+    function addPeachTree(x, z, width, height) {
+        const baseY = getTerrainY(x, z);
+        const planeGeo = new THREE.PlaneGeometry(width, height);
+        for (let a = 0; a < 3; a++) {
+            const p = new THREE.Mesh(planeGeo, matPeach);
+            p.position.set(x, baseY + height/2, z);
+            p.rotation.y = (a * Math.PI) / 3;
+            p.castShadow = true;
+            treeGroup.add(p);
+        }
+    }
+
+    // Row 2: Tall White Poplars along northern hillside bank behind cypresses (z = -10.8m)
+    for (let p = -12.5; p <= 12.5; p += 2.2) {
+        // Keep clear sightline window for rear hillside overlook (sightline at z=-10.8m is x ≈ 1.5m)
+        if (p > -0.2 && p < 3.8) continue;
+        const hVar = 15.5 + Math.sin(p * 1.6) * 1.8;
+        const wVar = 5.0 + Math.cos(p * 1.3) * 0.6;
+        addPoplarTree(p, -10.8, wVar, hVar);
+    }
+
+    // Flank and distant hillside white poplars
+    addPoplarTree(-15.5, -15.5, 6.2, 17.5);
+    addPoplarTree(15.5, -15.5, 5.8, 16.5);
+
+    // Slender Roadside & Field Border Poplars
+    addPoplarTree(-20.0, 15.0, 4.2, 9.5);
+    addPoplarTree(-22.5, 21.0, 4.5, 10.0);
+    addPoplarTree(-13.0, 25.0, 5.0, 11.0);
+    addPoplarTree(10.0, 22.0, 5.5, 12.0);
+    addPoplarTree(22.0, 28.0, 5.5, 12.0);
+
+    // Peach Trees in West Orchard (西侧果园春日桃花)
+    addPeachTree(-22.0, 1.5, 4.5, 3.8);
+    addPeachTree(-26.5, 2.2, 4.2, 3.6);
+    addPeachTree(-20.5, 5.5, 4.0, 3.5);
+    addPeachTree(-25.0, 6.2, 4.6, 3.9);
+    addPeachTree(-17.5, -3.5, 3.8, 3.4);
+    addPeachTree(-18.5, 10.5, 4.2, 3.6);
+
+    // --- 16. Camera Viewpoint System (9 Calibrated Viewpoints) ---
+    const viewpoints = {
+        facade: {
+            pos: new THREE.Vector3(-1.0, 4.20, 23.5),
+            target: new THREE.Vector3(0.0, 1.80, 0.0),
+            refImg: "ref_images/ref_060s_main_facade.jpg",
+            refTag: "M2U00577.MPG · 00:56",
+            title: "双联六开间正房与石围墙大院 (00:56)",
+            body: "严格对应00:56实景机位：近景为院坝边缘干砌毛石围墙与西南门垛，中心为开阔平整的泥土大院落（晒场/院坝），后方为完整的双联六开间夯土正房立面，左侧紧挨低矮红瓦四坡附房，右侧连接东厢房，北坡翠柏林木苍翠。"
+        },
+        door: {
+            pos: new THREE.Vector3(3.6, 1.5, 3.8),
+            target: new THREE.Vector3(4.8, 1.45, -0.4),
+            refImg: "ref_images/ref_180s_door_close.jpg",
+            refTag: "M2U00577.MPG · 03:00",
+            title: "堂屋拱券大门特写 (03:00)",
+            body: "双扇老杉木门、泛黄褪色春联纸符、拱形石灰白边抹灰门套与门前条石门槛特写，左侧立柱与檐下挑梁结构。"
+        },
+        west_stack: {
+            pos: new THREE.Vector3(-2.8, 1.6, 5.5),
+            target: new THREE.Vector3(-1.6, 1.35, -0.4),
+            refImg: "ref_images/ref_150s_tiles_stack.jpg",
+            refTag: "M2U00577.MPG · 02:30",
+            title: "中次间长瓦垛与西套木门 (02:30)",
+            body: "紧靠黄土墙脚下堆码的大量青瓦片与红砖压顶，与西套住宅木板门、白石灰饰边木窗构成鲜明而朴实的生活印记。"
+        },
+        west_annex: {
+            pos: new THREE.Vector3(-8.8, 1.42, 6.2),
+            target: new THREE.Vector3(-10.8, 1.65, -0.2),
+            refImg: "ref_images/ref_104s_west_annex.jpg",
+            refTag: "M2U00577.MPG · 01:44",
+            title: "西侧红瓦附房与紧邻正房实景 (01:44)",
+            body: "严格对应用户截图标注的真实建筑关系：西侧低矮红机瓦四坡顶附房紧挨正房西山墙（共享墙体无空隙），挑檐由左前角立柱支撑；正房西角为烧结砖叠砌柱体，白石灰抹灰窗套与暗窗、窗下切面柴木堆整齐堆码，前侧为开阔院落与石围墙。"
+        },
+        east_ladder: {
+            pos: new THREE.Vector3(5.6, 1.6, 5.2),
+            target: new THREE.Vector3(7.4, 1.6, -0.4),
+            refImg: "ref_images/ref_190s_ladder_wall.jpg",
+            refTag: "M2U00577.MPG · 03:10",
+            title: "东次间靠墙木梯与条凳 (03:10)",
+            body: "木质长梯斜靠在前廊檐枋处，梯底摆放长木凳，左侧可见拱券大门，右侧近景为东厢房山墙夹道。"
+        },
+        east_wing: {
+            pos: new THREE.Vector3(2.5, 1.60, 9.8),
+            target: new THREE.Vector3(10.8, 1.70, 1.2),
+            refImg: "ref_images/ref_065s_wing_corner.jpg",
+            refTag: "M2U00577.MPG · 01:05",
+            title: "主房与东厢房转折夹角全景 (01:05)",
+            body: "严格对应视频1分05秒实景：主房东侧与东厢房转折夹角，夹角后方开阔通透，直接呈现北山林木与蓝天，无任何多余房舍阻挡；东厢房呈现土坯墙体、木门白灰套、直棂窗与塌角残垣。"
+        },
+        west_compound: {
+            pos: new THREE.Vector3(-12.5, 1.65, 5.5),
+            target: new THREE.Vector3(-24.5, 2.2, 1.0),
+            refImg: "ref_images/ref_140s_west_neighbor.jpg",
+            refTag: "M2U00577.MPG · 02:20",
+            title: "西侧山坡桃花果园 (02:20)",
+            body: "正房西侧通往西坡的开阔视野，近景为附房西侧石板小径，远景为春日盛开的粉色桃花果园与西侧起伏山坡。"
+        },
+        rear_alley: {
+            pos: new THREE.Vector3(-6.5, 1.40, -5.65),
+            target: new THREE.Vector3(7.0, 1.40, -5.65),
+            refImg: "ref_images/ref_495s_rear_alley.jpg",
+            refTag: "M2U00577.MPG · 08:15",
+            title: "后檐翠柏夹道与防风绿篱 (08:15)",
+            body: "正房后檐下1.2米宽的窄长夹道，右侧为夯土后墙与石基，左侧为密植成排的翠绿侧柏防风林。"
+        },
+        rear_overview: {
+            pos: new THREE.Vector3(2.2, 9.2, -17.0),
+            target: new THREE.Vector3(-1.0, 2.2, -1.0),
+            refImg: "ref_images/ref_320s_rear_overview.jpg",
+            refTag: "M2U00577.MPG · 05:20",
+            title: "后山俯瞰双坡顶与全景聚落 (05:20)",
+            body: "从北侧后山坡地俯瞰双坡青瓦大屋顶与白灰正脊，近景为茂密翠柏与高大白杨树群，左侧为东厢房残垣，前方展现平整开阔大院坝与远方苍翠山峦。"
+        },
+        approach: {
+            pos: new THREE.Vector3(-6.2, 1.25, 25.5),
+            target: new THREE.Vector3(-4.1, 1.85, 12.0),
+            refImg: "ref_images/ref_020s_approach.jpg",
+            refTag: "M2U00577.MPG · 00:20",
+            title: "院门外长坡与正房全景 (00:20)",
+            body: "严格对应视频00:15-00:25实景视角：从门外连绵的长坡缓坡向上仰望院落，毛石门垛、整齐矩形干砌石院墙横贯展开，大门框景直通正房与院落。"
+        }
+    };
+
+    let targetCamPos = viewpoints.facade.pos.clone();
+    let targetLookAt = viewpoints.facade.target.clone();
+    let isTransitioning = false;
+
+    function switchView(viewKey) {
+        const v = viewpoints[viewKey];
+        if (!v) return;
+
+        document.querySelectorAll('.view-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.view === viewKey);
+        });
+
+        targetCamPos = v.pos.clone();
+        targetLookAt = v.target.clone();
+        isTransitioning = true;
+
+        updateDrawer(v);
+        location.hash = viewKey;
+    }
+
+    function updateDrawer(info) {
+        document.getElementById('ref-img').src = info.refImg;
+        document.getElementById('ref-tag').textContent = info.refTag;
+        document.getElementById('drawer-title').textContent = info.title;
+        document.getElementById('detail-card-title').textContent = info.title;
+        document.getElementById('detail-card-body').innerHTML = `<p>${info.body}</p>`;
+    }
+
+    // Initialize from URL hash or default facade
+    const initialHash = location.hash.replace('#', '');
+    if (initialHash && viewpoints[initialHash]) {
+        switchView(initialHash);
+        camera.position.copy(viewpoints[initialHash].pos);
+        controls.target.copy(viewpoints[initialHash].target);
+    } else {
+        camera.position.copy(viewpoints.facade.pos);
+        controls.target.copy(viewpoints.facade.target);
+        updateDrawer(viewpoints.facade);
+    }
+    controls.update();
+
+    document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.addEventListener('click', () => switchView(btn.dataset.view));
+    });
+
+    const drawer = document.getElementById('comparison-drawer');
+    document.getElementById('btn-toggle-drawer').addEventListener('click', () => {
+        drawer.classList.toggle('collapsed');
+    });
+    document.getElementById('close-drawer-btn').addEventListener('click', () => {
+        drawer.classList.add('collapsed');
+    });
+
+    // --- 17. Time of Day Lighting Presets ---
+    const lightModes = [
+        { name: "晴朗正午", sunPos: [-28, 44, 32], sunColor: 0xfffaed, sunInt: 1.95, hemiSky: 0xfff7ed, bg: 0xb2cce6 },
+        { name: "清晨柔光", sunPos: [-45, 18, 25], sunColor: 0xffe2b8, sunInt: 1.6, hemiSky: 0xd9e5f5, bg: 0xa9cce8 },
+        { name: "金色黄昏", sunPos: [-48, 12, 12], sunColor: 0xff9944, sunInt: 2.2, hemiSky: 0xf5ccaa, bg: 0xd99566 },
+        { name: "阴天漫射", sunPos: [0, 50, 0], sunColor: 0xdbe0e5, sunInt: 1.2, hemiSky: 0xcfd5db, bg: 0xc2ccd4 }
+    ];
+    let curLightIdx = 0;
+    document.getElementById('btn-light-mode').addEventListener('click', () => {
+        curLightIdx = (curLightIdx + 1) % lightModes.length;
+        const mode = lightModes[curLightIdx];
+        document.getElementById('light-label').textContent = mode.name;
+
+        sunLight.position.set(mode.sunPos[0], mode.sunPos[1], mode.sunPos[2]);
+        sunLight.color.setHex(mode.sunColor);
+        sunLight.intensity = mode.sunInt;
+        hemiLight.color.setHex(mode.hemiSky);
+        scene.background.setHex(mode.bg);
+        scene.fog.color.setHex(mode.bg);
+    });
+
+    // --- 18. First Person Walk Mode ---
+    let isWalkMode = false;
+    const btnToggleWalk = document.getElementById('btn-toggle-walk');
+    const modeLabel = document.getElementById('mode-label');
+    const crosshair = document.getElementById('crosshair');
+
+    btnToggleWalk.addEventListener('click', () => {
+        isWalkMode = !isWalkMode;
+        if (isWalkMode) {
+            btnToggleWalk.classList.add('active');
+            modeLabel.textContent = "返回轨道视角";
+            crosshair.style.display = 'block';
+            controls.enabled = false;
+            camera.position.y = 1.68;
+        } else {
+            btnToggleWalk.classList.remove('active');
+            modeLabel.textContent = "漫游漫步视角";
+            crosshair.style.display = 'none';
+            controls.enabled = true;
+            controls.target.set(0, 1.8, 0);
+        }
+    });
+
+    const keys = { w: false, a: false, s: false, d: false };
+    window.addEventListener('keydown', (e) => {
+        const k = e.key.toLowerCase();
+        if (k in keys) keys[k] = true;
+        if (k === 'v') btnToggleWalk.click();
+    });
+    window.addEventListener('keyup', (e) => {
+        const k = e.key.toLowerCase();
+        if (k in keys) keys[k] = false;
+    });
+
+    let isMouseDown = false;
+    let prevMouseX = 0, prevMouseY = 0;
+    let walkYaw = 0, walkPitch = 0;
+
+    window.addEventListener('mousedown', (e) => {
+        isMouseDown = true;
+        prevMouseX = e.clientX;
+        prevMouseY = e.clientY;
+    });
+    window.addEventListener('mouseup', () => { isMouseDown = false; });
+    window.addEventListener('mousemove', (e) => {
+        if (!isWalkMode || !isMouseDown) return;
+        const dx = e.clientX - prevMouseX;
+        const dy = e.clientY - prevMouseY;
+        prevMouseX = e.clientX;
+        prevMouseY = e.clientY;
+
+        walkYaw -= dx * 0.003;
+        walkPitch = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, walkPitch - dy * 0.003));
+
+        const lookDir = new THREE.Vector3(
+            Math.sin(walkYaw) * Math.cos(walkPitch),
+            Math.sin(walkPitch),
+            -Math.cos(walkYaw) * Math.cos(walkPitch)
+        );
+        camera.lookAt(camera.position.clone().add(lookDir));
+    });
+
+    // --- 19. Render Loop ---
+    const clock = new THREE.Clock();
+    function animate() {
+        requestAnimationFrame(animate);
+        const dt = clock.getDelta();
+
+        if (isTransitioning) {
+            camera.position.lerp(targetCamPos, 0.07);
+            controls.target.lerp(targetLookAt, 0.07);
+            controls.update();
+            if (camera.position.distanceTo(targetCamPos) < 0.05) {
+                isTransitioning = false;
+            }
+        } else if (controls.enabled) {
+            controls.update();
+        }
+
+        if (isWalkMode) {
+            const moveSpeed = 4.5 * dt;
+            const forward = new THREE.Vector3();
+            camera.getWorldDirection(forward);
+            forward.y = 0;
+            forward.normalize();
+            const right = new THREE.Vector3(-forward.z, 0, forward.x);
+
+            if (keys.w) camera.position.addScaledVector(forward, moveSpeed);
+            if (keys.s) camera.position.addScaledVector(forward, -moveSpeed);
+            if (keys.a) camera.position.addScaledVector(right, -moveSpeed);
+            if (keys.d) camera.position.addScaledVector(right, moveSpeed);
+
+            let groundH = 0;
+            if (camera.position.z < -4.5) {
+                groundH = Math.pow(Math.abs(camera.position.z + 4.5) * 0.18, 1.25);
+            } else if (camera.position.z > 14.2) {
+                const distZ = camera.position.z - 14.2;
+                groundH = -distZ * 0.085;
+            } else if (camera.position.x < -16.0) {
+                groundH = -(Math.abs(camera.position.x) - 16.0) * 0.14;
+            }
+            camera.position.y = groundH + 1.68;
+        }
+
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+    </script>
+</body>
+</html>

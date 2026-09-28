@@ -1,0 +1,9 @@
+# Video files (single large file is ignored; 50MB split parts are tracked)
+video/M2U00577.MPG
+
+# OS files
+.DS_Store
+*.pyc
+__pycache__/
+.idea/
+.vscode/
